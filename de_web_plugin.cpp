@@ -138,6 +138,7 @@ const quint64 silabs2MacPrefix    = 0xcccccc0000000000ULL;
 const quint64 energyMiMacPrefix   = 0xd0cf5e0000000000ULL;
 const quint64 schlageMacPrefix    = 0xd0cf5e0000000000ULL;
 const quint64 bjeMacPrefix        = 0xd85def0000000000ULL;
+const quint64 silabs11MacPrefix   = 0xcc86ec0000000000ULL;
 const quint64 silabs3MacPrefix    = 0xec1bbd0000000000ULL;
 const quint64 onestiPrefix        = 0xf4ce360000000000ULL;
 const quint64 xalMacPrefix        = 0xf8f0050000000000ULL;
@@ -456,6 +457,7 @@ static const SupportedDevice supportedDevices[] = {
     { VENDOR_EMBER, "TS0601", silabs9MacPrefix }, // Tuya siren
     { VENDOR_EMBER, "TS0222", silabs9MacPrefix }, // TYZB01 light sensor
     { VENDOR_OWON, "CTHS317ET", casaiaPrefix }, // CASA.ia Temperature probe CTHS-317-ET
+    { VENDOR_EMBER, "TS0601", silabs11MacPrefix }, // Tuya smart air box
     { VENDOR_NONE, "eaxp72v", ikea2MacPrefix }, // Tuya TRV Wesmartify Thermostat Essentials Premium
     { VENDOR_EMBER, "TS011F", YooksmartMacPrefix }, // Tuya Plug Blitzwolf BW-SHP15
     { VENDOR_EMBER, "TS011F", silabs10MacPrefix }, // Other tuya plugs
@@ -5610,6 +5612,8 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
     for (;i != end; ++i)
     {
         SensorFingerprint fpAirQualitySensor;
+		SensorFingerprint fpAirQualitySensorCO2;
+		SensorFingerprint fpAirQualitySensorHCHO;
         SensorFingerprint fpAlarmSensor;
         SensorFingerprint fpBatterySensor;
         SensorFingerprint fpCarbonMonoxideSensor;
@@ -5733,7 +5737,7 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
                         {
                             fpThermostatSensor.inClusters.push_back(TUYA_CLUSTER_ID);
                         }
-                        if (manufacturer.endsWith(QLatin1String("0yu2xgi")))
+                        if (manufacturer.endsWith(QLatin1String("0yu2xgi"))) // Tuya Siren
                         {
                             fpTemperatureSensor.inClusters.push_back(TUYA_CLUSTER_ID);
                             fpTemperatureSensor.inClusters.push_back(TEMPERATURE_MEASUREMENT_CLUSTER_ID);
@@ -5741,6 +5745,18 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
                             fpHumiditySensor.inClusters.push_back(RELATIVE_HUMIDITY_CLUSTER_ID);
                             fpAlarmSensor.inClusters.push_back(TUYA_CLUSTER_ID);
                             fpAlarmSensor.inClusters.push_back(IAS_ZONE_CLUSTER_ID);
+                        }
+                        if (manufacturer.endsWith(QLatin1String("ygsuhe1"))) // Tuya Smart Air Box
+                        {
+                            fpTemperatureSensor.inClusters.push_back(TUYA_CLUSTER_ID);
+                            fpTemperatureSensor.inClusters.push_back(TEMPERATURE_MEASUREMENT_CLUSTER_ID);
+                            fpHumiditySensor.inClusters.push_back(TUYA_CLUSTER_ID);
+                            fpHumiditySensor.inClusters.push_back(RELATIVE_HUMIDITY_CLUSTER_ID);
+                            fpAirQualitySensor.inClusters.push_back(TUYA_CLUSTER_ID);
+							fpAirQualitySensorCO2.inClusters.push_back(TUYA_CLUSTER_ID);
+							fpAirQualitySensorHCHO.inClusters.push_back(TUYA_CLUSTER_ID);
+							
+							
                         }
                     }
                     else if (node->nodeDescriptor().manufacturerCode() == VENDOR_EMBER &&
@@ -7082,7 +7098,8 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
         // ZHAAirQuality
         if (fpAirQualitySensor.hasInCluster(DEVELCO_AIR_QUALITY_CLUSTER_ID) || // Develco specific -> VOC Management
             fpAirQualitySensor.hasInCluster(ANALOG_INPUT_CLUSTER_ID) ||        // Xiaomi Aqara TVOC Air Quality Monitor
-            fpAirQualitySensor.hasInCluster(BOSCH_AIR_QUALITY_CLUSTER_ID))     // Bosch Air quality sensor
+            fpAirQualitySensor.hasInCluster(BOSCH_AIR_QUALITY_CLUSTER_ID) ||     // Bosch Air quality sensor
+            fpAirQualitySensor.hasInCluster(TUYA_CLUSTER_ID)) // Tuya Smart air box
         {
             fpAirQualitySensor.endpoint = i->endpoint();
             fpAirQualitySensor.deviceId = i->deviceId();
@@ -7092,6 +7109,42 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const deCONZ::
             if (!sensor || sensor->deletedState() != Sensor::StateNormal)
             {
                 addSensorNode(node, fpAirQualitySensor, QLatin1String("ZHAAirQuality"), modelId, manufacturer);
+            }
+            else
+            {
+                checkSensorNodeReachable(sensor);
+            }
+        }
+		
+		// ZHAAirQualityCO2
+        if (fpAirQualitySensorCO2.hasInCluster(TUYA_CLUSTER_ID))  // Tuya Smart air box
+        {
+            fpAirQualitySensorCO2.endpoint = i->endpoint();
+            fpAirQualitySensorCO2.deviceId = i->deviceId();
+            fpAirQualitySensorCO2.profileId = i->profileId();
+
+            sensor = getSensorNodeForFingerPrint(node->address().ext(), fpAirQualitySensorCO2, QLatin1String("ZHAAirQualityCO2"));
+            if (!sensor || sensor->deletedState() != Sensor::StateNormal)
+            {
+                addSensorNode(node, fpAirQualitySensorCO2, QLatin1String("ZHAAirQualityCO2"), modelId, manufacturer);
+            }
+            else
+            {
+                checkSensorNodeReachable(sensor);
+            }
+        }
+		
+		// ZHAAirQualityHCHO
+        if (fpAirQualitySensorHCHO.hasInCluster(TUYA_CLUSTER_ID))  // Tuya Smart air box
+        {
+            fpAirQualitySensorHCHO.endpoint = i->endpoint();
+            fpAirQualitySensorHCHO.deviceId = i->deviceId();
+            fpAirQualitySensorHCHO.profileId = i->profileId();
+
+            sensor = getSensorNodeForFingerPrint(node->address().ext(), fpAirQualitySensorHCHO, QLatin1String("ZHAAirQualityHCHO"));
+            if (!sensor || sensor->deletedState() != Sensor::StateNormal)
+            {
+                addSensorNode(node, fpAirQualitySensorHCHO, QLatin1String("ZHAAirQualityHCHO"), modelId, manufacturer);
             }
             else
             {
@@ -7821,6 +7874,12 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const SensorFi
         {
             clusterId = ANALOG_INPUT_CLUSTER_ID;
         }
+        else if (sensorNode.fingerPrint().hasInCluster(TUYA_CLUSTER_ID))
+        {
+            clusterId = TUYA_CLUSTER_ID;
+            item = sensorNode.addItem(DataTypeString, RStateAirQuality);
+            item = sensorNode.addItem(DataTypeUInt16, RStateAirQualityPpb);
+        }
 
         if (modelId == QLatin1String("AQSZB-110") ||                // Develco air quality sensor
             modelId == QLatin1String("lumi.airmonitor.acn01") ||    // Xiaomi Aqara TVOC Air Quality Monitor
@@ -7829,6 +7888,28 @@ void DeRestPluginPrivate::addSensorNode(const deCONZ::Node *node, const SensorFi
             item = sensorNode.addItem(DataTypeString, RStateAirQuality);
             item = sensorNode.addItem(DataTypeUInt16, RStateAirQualityPpb);
         }
+    }
+	else if (sensorNode.type().endsWith(QLatin1String("AirQualityCO2")))
+    {
+        //if (sensorNode.fingerPrint().hasInCluster(TUYA_CLUSTER_ID))
+        //{
+            clusterId = TUYA_CLUSTER_ID;
+            item = sensorNode.addItem(DataTypeString, RStateAirQuality);
+            item = sensorNode.addItem(DataTypeUInt16, RStateAirQualityCO2Ppm);
+        //}
+
+        
+    }
+	else if (sensorNode.type().endsWith(QLatin1String("AirQualityHCHO")))
+    {
+        //if (sensorNode.fingerPrint().hasInCluster(TUYA_CLUSTER_ID))
+        //{
+            clusterId = TUYA_CLUSTER_ID;
+            item = sensorNode.addItem(DataTypeString, RStateAirQuality);
+            item = sensorNode.addItem(DataTypeUInt16, RStateAirQualityHCHOmgm3);
+        //}
+
+        
     }
 
     const lidlDevice *lidlDevice = getLidlDevice(manufacturer);
